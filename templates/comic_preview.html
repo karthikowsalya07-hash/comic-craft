@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Comic - ComicCraft</title>
+  <meta name="description" content="Preview your generated 5-panel comic and download the PDF.">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="hero compact">
+      <p class="eyebrow">YOUR AI COMIC</p>
+      <h1>Comic preview</h1>
+      <p class="subtitle">Review your story panel by panel.</p>
+    </section>
+
+    <div class="actions">
+      <a class="button secondary" href="/">← Create another</a>
+      <a class="button" id="downloadBtn" href="/download/{{ pdf_filename }}" download>⬇ Download Your Comic as PDF</a>
+    </div>
+
+    <div class="comic">
+      {% for panel in layout %}
+      <article class="panel card">
+        <div class="panel-heading">
+          <span>Panel {{ panel.panel_number }} of 5</span>
+          <h2>{{ panel.title }}</h2>
+        </div>
+        <img src="{{ panel.image_path }}" alt="Illustration for panel {{ panel.panel_number }}" loading="lazy">
+        <p class="scene">{{ panel.scene_description }}</p>
+
+        <div class="text-block">
+          <h3>Caption</h3>
+          <p>{{ panel.caption }}</p>
+          <h3>Narration</h3>
+          <p>{{ panel.narration }}</p>
+          {% if panel.dialogue %}
+          <h3>Dialogue</h3>
+          <p class="dialogue">“{{ panel.dialogue }}”</p>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </main>
+
+  <script>
+    const downloadBtn = document.getElementById("downloadBtn");
+    downloadBtn.addEventListener("click", () => {
+      setTimeout(() => {
+        window.location.href = "/export-success";
+      }, 1500);
+    });
+  </script>
+</body>
+</html>

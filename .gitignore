@@ -1,0 +1,26 @@
+# Python artifacts & virtual environments
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local environment & secrets (NEVER COMMIT)
+.env
+.env.local
+*.pem
+*.key
+
+# Editor & OS artifacts
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated comic media & export outputs (keep directories via .gitkeep)
+static/panels/*
+static/exports/*
+!static/panels/.gitkeep
+!static/exports/.gitkeep

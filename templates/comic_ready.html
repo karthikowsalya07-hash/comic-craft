@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Comic is Ready — ComicCraft</title>
+  <meta name="description" content="Your AI-generated comic is ready. Download the PDF.">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="hero compact">
+      <p class="eyebrow">GENERATION COMPLETE</p>
+      <h1>Your comic is ready!</h1>
+      <p class="subtitle">Your five-panel AI comic has been generated and exported.</p>
+    </section>
+
+    <div class="card success-card">
+      <div class="success-icon">✓</div>
+      <p class="eyebrow">EXPORT COMPLETE</p>
+      <p class="comic-id-label">Comic ID: <code>{{ comic_id }}</code></p>
+
+      <div class="actions" style="justify-content:center; margin-top:24px;">
+        <a class="button" id="downloadBtn" href="{{ pdf_url }}" download>
+          ⬇ Download Your Comic PDF
+        </a>
+        <a class="button secondary" href="/">← Create Another Comic</a>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      setTimeout(() => { window.location.href = "/export-success"; }, 1500);
+    });
+  </script>
+</body>
+</html>

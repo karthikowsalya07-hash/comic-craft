@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComicCraft - AI Comic Story Creator</title>
+  <meta name="description" content="Turn an idea into a beautiful five-panel AI comic with Gemini narration and AI illustrations.">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <p class="eyebrow">AI COMIC STORY CREATOR</p>
+      <h1>Turn an idea into a comic.</h1>
+      <p class="subtitle">Create a five-panel story with Gemini narration and AI-generated illustrations.</p>
+    </section>
+
+    <!-- Static server-side error (non-JS fallback only) -->
+    {% if error %}
+    <div class="alert" role="alert" id="serverError">
+      <strong>Notice:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- JS error banner (hidden until needed) -->
+    <div class="alert" role="alert" id="jsError" style="display:none;"></div>
+
+    <form class="card form-card" id="comicForm">
+      <label for="story_prompt">Story Prompt</label>
+      <textarea id="story_prompt" name="story_prompt" rows="4" required minlength="3" maxlength="2000"
+        placeholder="A brave fox exploring an enchanted forest..."></textarea>
+
+      <div class="grid">
+        <div>
+          <label for="character_name">Main Character Name</label>
+          <input id="character_name" name="character_name" required minlength="1" maxlength="80" placeholder="Luna">
+        </div>
+        <div>
+          <label for="setting">Setting</label>
+          <select id="setting" name="setting">
+            <option>Enchanted forest</option>
+            <option>School</option>
+            <option>Future city</option>
+            <option>Outer space</option>
+            <option>Underwater world</option>
+            <option>Custom</option>
+          </select>
+        </div>
+        <div>
+          <label for="tone">Story Tone</label>
+          <select id="tone" name="tone">
+            <option>Light-hearted</option>
+            <option>Dramatic</option>
+            <option>Poetic</option>
+            <option>Funny</option>
+            <option selected>Adventurous</option>
+          </select>
+        </div>
+        <div>
+          <label for="art_style">Art Style</label>
+          <select id="art_style" name="art_style">
+            <option selected>Comic book</option>
+            <option>Anime-inspired</option>
+            <option>Pixel art</option>
+            <option>Watercolor</option>
+            <option>Fantasy illustration</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="button" id="submitBtn" type="submit">✨ Create My Comic</button>
+
+      <!-- ── Progress panel (hidden until a job starts) ── -->
+      <div id="progressPanel" class="loading-box" style="display:none;" aria-live="polite">
+
+        <!-- Spinner shown while in progress -->
+        <div class="spinner" id="progressSpinner"></div>
+
+        <!-- Success icon shown on completion -->
+        <div class="success-icon" id="progressIcon" style="display:none;">✓</div>
+
+        <p class="loading-title" id="progressTitle">Generating your comic…</p>
+        <p class="loading-subtitle" id="progressMessage">Queued, waiting to start…</p>
+
+        <!-- Progress bar -->
+        <div class="progress-container" style="width:100%; margin-top:14px;">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <p class="progress-label" id="progressPct">0%</p>
+
+        <!-- Link shown on completion -->
+        <a class="button" id="viewComicBtn" href="#" style="display:none; margin-top:16px;">
+          🎨 View Your Comic
+        </a>
+      </div>
+
+      <p class="hint" id="defaultHint">Generation may take a minute or two as 5 panel illustrations are prepared.</p>
+    </form>
+
+    <section class="info">
+      <div><strong>5</strong><span>Comic panels</span></div>
+      <div><strong>AI</strong><span>Story + images</span></div>
+      <div><strong>PDF</strong><span>Downloadable export</span></div>
+    </section>
+  </main>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // ── DOM refs ──────────────────────────────────────────────────────────
+    const form          = document.getElementById("comicForm");
+    const submitBtn     = document.getElementById("submitBtn");
+    const defaultHint   = document.getElementById("defaultHint");
+    const jsError       = document.getElementById("jsError");
+
+    const progressPanel   = document.getElementById("progressPanel");
+    const progressSpinner = document.getElementById("progressSpinner");
+    const progressIcon    = document.getElementById("progressIcon");
+    const progressTitle   = document.getElementById("progressTitle");
+    const progressMessage = document.getElementById("progressMessage");
+    const progressBar     = document.getElementById("progressBar");
+    const progressPct     = document.getElementById("progressPct");
+    const viewComicBtn    = document.getElementById("viewComicBtn");
+
+    // ── State ─────────────────────────────────────────────────────────────
+    let pollInterval  = null;   // setInterval handle
+    let activeJobId   = null;   // current in-flight job id
+    const POLL_MS     = 2000;   // poll every 2 s
+    const MAX_POLLS   = 150;    // safety cap (~5 min)
+    let pollCount     = 0;
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+    function setError(msg) {
+      jsError.textContent = msg;
+      jsError.style.display = "block";
+      jsError.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    function clearError() {
+      jsError.textContent = "";
+      jsError.style.display = "none";
+    }
+
+    function lockForm() {
+      submitBtn.disabled    = true;
+      submitBtn.style.opacity = "0.6";
+      submitBtn.textContent = "⏳ Generating…";
+    }
+
+    function unlockForm() {
+      submitBtn.disabled    = false;
+      submitBtn.style.opacity = "1";
+      submitBtn.textContent = "✨ Create My Comic";
+    }
+
+    function showProgress() {
+      progressPanel.style.display = "flex";
+      defaultHint.style.display   = "none";
+    }
+
+    function hideProgress() {
+      progressPanel.style.display = "none";
+      defaultHint.style.display   = "block";
+    }
+
+    function updateProgress(pct, message) {
+      progressBar.style.width  = pct + "%";
+      progressPct.textContent  = pct + "%";
+      progressMessage.textContent = message || "";
+    }
+
+    function stopPolling() {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    }
+
+    function setCompleted(comicId) {
+      stopPolling();
+      updateProgress(100, "Comic generation complete!");
+      progressTitle.textContent = "🎉 Your comic is ready!";
+      progressSpinner.style.display = "none";
+      progressIcon.style.display    = "grid";
+      viewComicBtn.href             = "/comic/" + comicId;
+      viewComicBtn.style.display    = "inline-flex";
+      unlockForm();
+    }
+
+    function setFailed(errorMsg) {
+      stopPolling();
+      progressTitle.textContent   = "Generation failed";
+      progressMessage.textContent = "";
+      progressSpinner.style.display = "none";
+      updateProgress(0, "");
+      setError("Comic generation failed: " + (errorMsg || "Unknown error. Please try again."));
+      unlockForm();
+      hideProgress();
+    }
+
+    // ── Polling ───────────────────────────────────────────────────────────
+    async function pollJob(jobId) {
+      pollCount++;
+      if (pollCount > MAX_POLLS) {
+        setFailed("Timed out waiting for comic generation. Please try again.");
+        return;
+      }
+
+      let data;
+      try {
+        const res = await fetch("/api/jobs/" + jobId);
+        if (!res.ok) {
+          setFailed("Could not reach the server. Please check your connection.");
+          return;
+        }
+        data = await res.json();
+      } catch (err) {
+        // Transient network error — keep polling
+        console.warn("Poll error (will retry):", err);
+        return;
+      }
+
+      // Update UI
+      updateProgress(data.progress || 0, data.message || "");
+
+      if (data.status === "completed") {
+        setCompleted(data.comic_id);
+        // Auto-navigate after a brief moment so the user sees 100 %
+        setTimeout(() => { window.location.href = "/comic/" + data.comic_id; }, 1800);
+        return;
+      }
+
+      if (data.status === "failed") {
+        setFailed(data.error);
+        return;
+      }
+
+      // Still in progress — keep polling
+    }
+
+    // ── Form submit ───────────────────────────────────────────────────────
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      clearError();
+
+      // Prevent duplicate submission while a job is in flight
+      if (activeJobId) {
+        return;
+      }
+
+      lockForm();
+      showProgress();
+      updateProgress(0, "Submitting your request…");
+      progressTitle.textContent = "Generating your comic…";
+      progressSpinner.style.display = "block";
+      progressIcon.style.display    = "none";
+      viewComicBtn.style.display    = "none";
+      pollCount = 0;
+
+      // Build form data
+      const fd = new FormData(form);
+
+      let result;
+      try {
+        const res = await fetch("/generate", {
+          method: "POST",
+          body: fd,
+        });
+        result = await res.json();
+
+        if (!res.ok || result.error) {
+          setFailed(result.error || "Server returned an error. Please try again.");
+          hideProgress();
+          return;
+        }
+      } catch (err) {
+        setFailed("Could not connect to the server. Please try again.");
+        hideProgress();
+        return;
+      }
+
+      activeJobId = result.job_id;
+      updateProgress(2, "Queued, waiting to start…");
+
+      // Begin polling
+      pollInterval = setInterval(() => pollJob(activeJobId), POLL_MS);
+
+      // First poll immediately
+      await pollJob(activeJobId);
+    });
+
+    // ── Reset job state when user manually resets the form ────────────────
+    form.addEventListener("reset", () => {
+      stopPolling();
+      activeJobId = null;
+      hideProgress();
+      unlockForm();
+      clearError();
+    });
+
+  })();
+  </script>
+</body>
+</html>
